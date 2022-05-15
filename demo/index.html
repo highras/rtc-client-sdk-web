@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RTC</title>
+
+<script src="js/jquery-1.10.2.min.js"></script>
+<script src="js/semantic.min.js" ></script>
+<script src="js/md5.min.js"></script>
+<script src="js/int64.min.js"></script>
+<script src="js/msgpack.min.js"></script>
+<script src="js/fpnn.min.js"></script>
+<script src="js/rtm.min.js"></script>
+<script src="js/rtc.min.js"></script>
+<link rel="stylesheet" type="text/css" href="css/semantic.min.css" />
+
+<style type="text/css">
+.rtc-demo-container {
+    text-align: left;
+    width: 100%;
+    height: 100%;
+    clear: both;
+}
+input.menu-input {
+    border: 1px solid #a3a3a3;
+    width: 200px;
+    height: 30px;
+    line-height: 30px;
+    padding: 0 10px;
+    border-radius: 3px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+.menu-item {
+    margin-bottom: 5px;
+}
+.button-style {
+    height: 30px;
+    margin-right: 5px;
+}
+.show-action {
+    background: #373737;
+    color: #FFF;
+    width: 350px;
+    height: 100%;
+}
+.left-menu {
+    width: 460px;
+    height: 100%;
+    float: left;
+}
+.right-view {
+    width: calc(100% - 460px);
+    height: 100%;
+    float: left;
+    padding-top: 20px;
+}
+.top-menu {
+    padding-top: 20px;
+    padding-left: 20px;
+}
+.action-view {
+    background: #2d2d2d;
+    color: #FFF;
+    height: 500px;
+    border-radius: 5px;
+    margin: 30px 40px 0px 20px;
+    padding: 10px;
+    overflow-y: scroll;
+}
+span.action-time {
+    font-size: 13px;
+    margin-right: 5px;
+    font-style: italic;
+}
+.action-item {
+    margin-bottom: 5px;
+}
+input:disabled {
+    cursor: not-allowed;
+}
+.player-wrapper {
+    margin-right: 10px;
+    margin-bottom: 10px;
+    float:left;
+    position: relative;
+}
+.player-view{
+    width: 300px;
+}
+#rtc-logout-btn, #rtc-leave-room-btn{
+    display:none;
+}
+.user-detail {
+    color: #FFF;
+    background: #0493be;
+    display: inline-block;
+    clear: both;
+    position: absolute;
+    left: 0px;
+    padding: 3px 5px;
+    border-radius: 0px 3px 3px 0px;
+}
+.status-detail {
+    color: #FFF;
+    background: #0493be;
+    display: inline-block;
+    clear: both;
+    position: absolute;
+    right: 0px;
+    bottom: 5px;
+    border-radius: 3px 0px 0px 3px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="rtc-demo-container">
+
+<div class="left-menu"> 
+
+<div class="top-menu">
+
+<div class="menu-item">
+    <span class="menu-item menu-title">用户ID: </span>
+    <input type="email" class="form-control menu-item menu-input" id="user-id" placeholder="" autocomplete="off">
+    <button type="button" class="btn btn-default menu-item button-style" id="rtc-login-btn">登录RTC</button>
+    <button type="button" class="btn btn-default menu-item button-style" id="rtc-logout-btn">退出</button>
+</div>
+
+<div class="menu-item">
+    <span class="menu-item menu-title">房间ID: </span>
+    <input type="email" class="form-control menu-item menu-input" id="room-id" placeholder="" autocomplete="off">
+    <button type="button" class="btn btn-default menu-item button-style" id="rtc-enter-room-btn">进入房间</button>
+    <button type="button" class="btn btn-default menu-item button-style" id="rtc-leave-room-btn">退出房间</button>
+</div>
+
+<div class="menu-item">
+    <button type="button" class="btn btn-default menu-item button-style" id="rtc-close-camera-btn">关闭/打开摄像头</button>
+    <button type="button" class="btn btn-default menu-item button-style" id="rtc-close-mic-btn">关闭/打开麦克风</button>
+</div>
+
+</div>
+
+<div class="action-view">
+
+</div>
+
+</div>
+
+<div class="right-view">
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+<script>
+
+let ajax = function(url, type, data, timeout, option) {
+    timeout = 1000 * timeout;
+    $.ajax({
+        type: type,
+        url: url,
+        timeout: timeout,
+        data: data,
+        dataType: (option.dataType !== undefined) ? option.dataType : undefined,
+        success: (option.success !== undefined) ? option.success : function(data){},
+        complete: (option.complete !== undefined) ? option.complete : function(jqXHR, textStatus){},
+        error: (option.error !== undefined) ? option.error : function(jqXHR, textStatus, errorThrown){},
+        beforeSend: (option.beforeSend !== undefined) ? option.beforeSend : function(jqXHR, settings){}
+    });
+};
+
+Date.prototype.Format = function (fmt) {
+    var o = {
+        "M+": this.getMonth() + 1, 
+        "d+": this.getDate(),
+        "H+": this.getHours(),
+        "m+": this.getMinutes(),
+        "s+": this.getSeconds(),
+        "q+": Math.floor((this.getMonth() + 3) / 3),
+        "S": this.getMilliseconds() 
+    };
+    if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+    for (var k in o)
+    if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+    return fmt;
+}
+
+let getTime = function() {
+    return '' + (new Date().Format("HH:mm:ss"));
+}
+
+let showActionDetail = function(text) {
+    $(".action-view").append('<div class="action-item"><span class="action-time">' + getTime() + '</span>' + text + '</div>');
+};
+
+let addMemberPlayView = function(rid, uid, stream, microphoneEnabled, cameraEnabled) {
+    var statusDetail = '';
+    if (!microphoneEnabled)
+        statusDetail = '<i class="microphone slash icon"></i>';
+    let html = $('<div class="player-wrapper" id="player-' + uid + '"" data="' + uid + '"> \
+                    <video class="player-view" id="video-' + uid + '" autoplay></video> \
+                    <div class="user-detail">' + uid + '</div> \
+                    <div class="status-detail">' + statusDetail + '</div> \
+                </div>');
+    $(".right-view").append(html);
+    html.find(".player-view").prop('srcObject', stream);
+}
+
+let addSelfPlayView = function(rid, uid, stream) {
+    let mutedOption = "muted";
+    var statusDetail = '<i class="microphone slash icon"></i>';
+    let html = $('<div class="player-wrapper" id="player-' + uid + '"" data="' + uid + '"> \
+                    <video class="player-view" id="video-' + uid + '" autoplay ' + mutedOption + '></video> \
+                    <div class="user-detail">' + uid + '</div> \
+                    <div class="status-detail"></div> \
+                </div>');
+    $(".right-view").append(html);
+    html.find(".player-view").prop('srcObject', stream);
+}
+
+var rtcClient = null;
+var closeCamera = false;
+var closeMic = false;
+
+$("#rtc-login-btn").click(function() {
+    let uid = parseInt($("#user-id").val());
+    if (isNaN(uid) || uid <= 0) {
+        alert("用户ID不合法");
+        return;
+    }
+    ajax('https://a-demo-get-token-server.com/gettoken.php', 'post', {uid: uid}, 20, {
+        dataType: 'json',
+        success: function(data) {
+            if (data.status != 0) {
+                showActionDetail("获取token失败");
+                return;
+            }
+            console.log(data);
+
+            rtcClient = new RTCClient({ 
+                rtmEndpoint: 'rtm-nx-front.ilivedata.com:13322',
+                rtcEndpoint: 'rtc-web.ilivedata.com:13706',
+                connectionTimeout: 10 * 1000,
+                pid: 80000071,
+            });
+
+            rtcClient.on('RoomMembersChanged', function(memberChangedMap) {
+                console.log(memberChangedMap);
+
+                for (var i = 0; i < memberChangedMap.enter.length; i++) {
+                    let member = memberChangedMap.enter[i];
+                    if ($("#player-" + member.userID).length == 0) {
+                        showActionDetail("用户加入房间(userID: " + member.userID + ")");
+                        addMemberPlayView(member.roomID, member.userID, member.getStream(), member.microphoneEnabled, member.cameraEnabled);
+                    }
+                }
+
+                for (var i = 0; i < memberChangedMap.leave.length; i++) {
+                    let member = memberChangedMap.leave[i];
+                    showActionDetail("用户离开房间(userID: " + member.userID + ")");
+                    $("#player-" + member.userID).remove();
+                }
+
+                for (var i = 0; i < memberChangedMap.change.length; i++) {
+                    let changedInfo = memberChangedMap.change[i];
+                    if (changedInfo.changedEvent === RTC_EVENT.RTC_EV_MICROPHONE_CLOSE) {
+                        $("#player-" + changedInfo.userID).find(".status-detail").html('<i class="microphone slash icon"></i>');
+                    } else if (changedInfo.changedEvent === RTC_EVENT.RTC_EV_MICROPHONE_OPEN) {
+                        $("#player-" + changedInfo.userID).find(".status-detail").html('');
+                    }
+                }
+            });
+
+            rtcClient.login(new rtm.RTMConfig.Int64(uid), data.token, function(ok, errorCode) {
+                if (errorCode == fpnn.FPConfig.ERROR_CODE.FPNN_EC_OK) {
+
+                    if (!ok) {
+                        showActionDetail("token error");
+                        return;
+                    } else {
+                        console.log("login successfully");
+                        showActionDetail("登录成功（userID: " + uid + "）");
+
+                        window.onbeforeunload = function (e) {
+                            rtcClient.logout();
+                        };
+                    }
+
+                    $("#rtc-login-btn").hide();
+                    $("#rtc-logout-btn").show();
+                    $("#user-id").attr("disabled","disabled");
+
+                } else {
+                    showActionDetail("登录失败(" + errorCode + ")");
+                }
+            }, 60 * 1000);
+
+            rtcClient.on('SessionClosed', function(errorCode) {
+                console.log('SessionClosed: ' + errorCode);
+            });
+            
+            rtcClient.on('ReloginCompleted', function(successful ,retryAgain, errorCode, retriedCount) {
+                console.log('ReloginCompleted: successful(' + successful + ') retryAgain(' + retryAgain + ') errorCode(' + errorCode + ') retriedCount(' + retriedCount + ')');
+            });
+        },
+        complete: function(jqXHR, textStatus) {
+            
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+
+        }
+    });
+});
+
+$("#rtc-enter-room-btn").click(function() {
+    let rid = parseInt($("#room-id").val());
+    if (isNaN(rid) || rid <= 0) {
+        alert("房间ID不合法");
+        return;
+    }
+    if (!rtcClient || !rtcClient.isLogin()) {
+        alert("未登录");
+        return;
+    }
+
+    rtcClient.enterVideoRoom(new rtm.RTMConfig.Int64(rid), true, true, 1000, function(errorCode, publishStream, memberMap) {
+        if (errorCode == fpnn.FPConfig.ERROR_CODE.FPNN_EC_OK) {
+            showActionDetail("加入房间成功（roomID: " + rid + "）");
+            addSelfPlayView(rid, rtcClient.getLoginUserID(), publishStream, true);
+            for (var uid in memberMap) {
+                let member = memberMap[uid];
+                if ($("#player-" + member.userID).length == 0) {
+                    addMemberPlayView(member.roomID, member.userID, member.getStream(), member.microphoneEnabled, member.cameraEnabled);
+                }
+            }
+
+            $("#rtc-enter-room-btn").hide();
+            $("#rtc-leave-room-btn").show();
+            $("#room-id").attr("disabled","disabled");
+        } else {
+            showActionDetail("加入房间失败(" + errorCode + ")");
+        }
+    });
+});
+
+$("#rtc-logout-btn").click(function() {
+    rtcClient.logout();
+    $(".right-view").html("");
+    showActionDetail("已退出");
+    $("#rtc-logout-btn").hide();
+    $("#rtc-login-btn").show();
+    $("#user-id").removeAttr("disabled");
+
+    $("#rtc-leave-room-btn").hide();
+    $("#rtc-enter-room-btn").show();
+    $("#room-id").removeAttr("disabled");
+});
+
+$("#rtc-leave-room-btn").click(function() {
+    rtcClient.leaveRoom();
+    $(".right-view").html("");
+    showActionDetail("离开房间");
+    $("#rtc-leave-room-btn").hide();
+    $("#rtc-enter-room-btn").show();
+    $("#room-id").removeAttr("disabled");
+});
+
+$("#rtc-close-camera-btn").click(function() {
+    if (rtcClient === null)
+        return;
+    if (!closeCamera) {
+        rtcClient.enableCamera(false);
+        closeCamera = true;
+    } else {
+        rtcClient.enableCamera(true);
+        closeCamera = false;
+    }
+});
+
+$("#rtc-close-mic-btn").click(function() {
+    if (rtcClient === null)
+        return;
+    if (!closeMic) {
+        rtcClient.enableMicrophone(false);
+        closeMic = true;
+
+        $("#player-" + rtcClient.getLoginUserID()).find(".status-detail").html('<i class="microphone slash icon"></i>');
+    } else {
+        rtcClient.enableMicrophone(true);
+        closeMic = false;
+
+        $("#player-" + rtcClient.getLoginUserID()).find(".status-detail").html('');
+    }
+});
+
+showActionDetail("未登录");
+</script>
+
+
+</body>
+</html>
